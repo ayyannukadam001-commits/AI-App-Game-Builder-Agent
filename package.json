@@ -9,7 +9,7 @@
     "dev:server": "node --watch server/index.js",
     "build": "vite build",
     "start": "node server/index.js",
-    "check": "node --check server/index.js"
+    "check": "node --check server/index.js && node --check server/workspace.js && node --test"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -24,5 +24,7 @@
     "concurrently": "^9.1.2",
     "vite": "^6.0.5"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

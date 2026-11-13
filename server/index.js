@@ -2,6 +2,9 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { createProposal, parseGeneratedProject } from "./workspace.js";
 import { fileURLToPath } from "node:url";
 
 const app = express();
@@ -9,6 +12,8 @@ const port = Number(process.env.PORT || 8787);
 const baseUrl = (process.env.FREELLMAPI_BASE_URL || "").replace(/\/+$/, "");
 const apiKey = process.env.FREELLMAPI_API_KEY || "";
 const configuredModel = process.env.FREELLMAPI_MODEL || "";
+const pendingProposals = new Map();
+const workspaceRoot = path.resolve(process.env.WORKSPACE_DIR || "./data/workspaces");
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 app.use(express.json({ limit: "1mb" }));
 
@@ -28,6 +33,69 @@ async function gateway(pathname, options = {}) {
   if (!response.ok) throw new Error(data?.error?.message || data?.message || `FreeLLMAPI returned HTTP ${response.status}`);
   return data;
 }
+
+
+app.post("/api/projects/generate", async (req, res) => {
+  const { idea, kind = "app", model } = req.body || {};
+  if (typeof idea !== "string" || idea.trim().length < 8 || idea.length > 8000) {
+    return res.status(400).json({ error: "Enter a project idea between 8 and 8,000 characters." });
+  }
+  const selectedModel = model || configuredModel;
+  if (!selectedModel) return res.status(400).json({ error: "No model selected. Configure FreeLLMAPI and load its model list." });
+  try {
+    const result = await gateway("/v1/chat/completions", {
+      method: "POST",
+      body: JSON.stringify({
+        model: selectedModel,
+        temperature: 0.2,
+        max_tokens: 7000,
+        messages: [
+          { role: "system", content: "You are a careful software project generator. Return ONLY valid JSON with exactly this shape: {\\"summary\\":string,\\"files\\":[{\\"path\\":string,\\"content\\":string}]}. Generate a small coherent starter project, not a plan. Use only relative paths and text source files. Do not include package.json, environment files, scripts, CI workflows, or secrets. Maximum 20 files. Never claim the project was built or tested. Do not wrap JSON in Markdown fences." },
+          { role: "user", content: `Create a ${kind === "game" ? "game" : "app"} starter project for this idea:\\n${idea}\\n\\nInclude a concise summary and complete contents for every file. Use a simple web preview-compatible starter unless the request explicitly requires a different framework.` }
+        ]
+      })
+    });
+    const content = result?.choices?.[0]?.message?.content;
+    const project = parseGeneratedProject(typeof content === "string" ? content : "");
+    const proposal = createProposal(project);
+    pendingProposals.set(proposal.id, proposal);
+    res.json({
+      proposalId: proposal.id,
+      summary: proposal.summary,
+      files: proposal.files.map(file => ({ path: file.path, preview: file.content.slice(0, 5000), truncated: file.content.length > 5000 })),
+      approvalRequired: true,
+      expiresInMinutes: 30
+    });
+  } catch (error) {
+    res.status(502).json({ error: error.message });
+  }
+});
+
+app.post("/api/projects/:proposalId/apply", async (req, res) => {
+  const proposal = pendingProposals.get(req.params.proposalId);
+  if (!proposal) return res.status(404).json({ error: "Proposal not found or expired. Generate it again." });
+  try {
+    const projectId = randomUUID();
+    const projectDir = path.resolve(workspaceRoot, projectId);
+    await mkdir(projectDir, { recursive: true });
+    for (const file of proposal.files) {
+      const destination = path.resolve(projectDir, file.path);
+      if (!destination.startsWith(projectDir + path.sep)) throw new Error("Unsafe destination path.");
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, file.content, { encoding: "utf8", flag: "wx" });
+    }
+    pendingProposals.delete(proposal.id);
+    res.status(201).json({
+      projectId,
+      summary: proposal.summary,
+      files: proposal.files.map(file => file.path),
+      workspace: "server-local",
+      note: "Files were written to an isolated workspace. They have not been executed, tested, synced to GitHub, or built into an APK."
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Could not apply the approved project proposal.", detail: error.message });
+  }
+});
 
 app.get("/api/health", (_req, res) => res.json({
   status: "ok",
