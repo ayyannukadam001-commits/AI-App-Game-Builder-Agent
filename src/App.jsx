@@ -30,7 +30,10 @@ export default function App() {
   const [plan, setPlan] = useState("");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
-  const [completed, setCompleted] = useState([]);\n  const [proposal, setProposal] = useState(null);\n  const [appliedProject, setAppliedProject] = useState(null);\n  const [fileBusy, setFileBusy] = useState(false);
+  const [completed, setCompleted] = useState([]);
+  const [proposal, setProposal] = useState(null);
+  const [appliedProject, setAppliedProject] = useState(null);
+  const [fileBusy, setFileBusy] = useState(false);
 
   async function loadModels() {
     setConnection("checking");
@@ -80,7 +83,27 @@ export default function App() {
     }
   }
 
-  async function generateFiles() {\n    if (idea.trim().length < 8 || !model || connection !== "connected") return;\n    setFileBusy(true); setError(""); setProposal(null); setAppliedProject(null);\n    try {\n      const r = await fetch("/api/projects/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, kind, model }) });\n      const data = await r.json(); if (!r.ok) throw new Error(data.error || "Project generation failed.");\n      setProposal(data); setActiveTab("workspace");\n    } catch (e) { setError(e.message); } finally { setFileBusy(false); }\n  }\n\n  async function approveFiles() {\n    if (!proposal?.proposalId) return;\n    setFileBusy(true); setError("");\n    try {\n      const r = await fetch(`/api/projects/${proposal.proposalId}/apply`, { method: "POST" });\n      const data = await r.json(); if (!r.ok) throw new Error(data.error || "Could not apply project files.");\n      setAppliedProject(data); setProposal(null);\n    } catch (e) { setError(e.message); } finally { setFileBusy(false); }\n  }\n\n  const statusLabel = connection === "connected" ? "FreeLLMAPI connected" : connection === "checking" ? "Checking gateway…" : "Gateway not configured";
+  async function generateFiles() {
+    if (idea.trim().length < 8 || !model || connection !== "connected") return;
+    setFileBusy(true); setError(""); setProposal(null); setAppliedProject(null);
+    try {
+      const r = await fetch("/api/projects/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, kind, model }) });
+      const data = await r.json(); if (!r.ok) throw new Error(data.error || "Project generation failed.");
+      setProposal(data); setActiveTab("workspace");
+    } catch (e) { setError(e.message); } finally { setFileBusy(false); }
+  }
+
+  async function approveFiles() {
+    if (!proposal?.proposalId) return;
+    setFileBusy(true); setError("");
+    try {
+      const r = await fetch(`/api/projects/${proposal.proposalId}/apply`, { method: "POST" });
+      const data = await r.json(); if (!r.ok) throw new Error(data.error || "Could not apply project files.");
+      setAppliedProject(data); setProposal(null);
+    } catch (e) { setError(e.message); } finally { setFileBusy(false); }
+  }
+
+  const statusLabel = connection === "connected" ? "FreeLLMAPI connected" : connection === "checking" ? "Checking gateway…" : "Gateway not configured";
   const progress = Math.round((completed.length / roles.length) * 100);
 
   return <div className="shell">
@@ -136,7 +159,9 @@ export default function App() {
       {activeTab === "workspace" && <section className="content"><div className="section-title"><div><span className="eyebrow">ACTIVE WORK</span><h2>Project workspace</h2></div><span className="step-label">AGENT PIPELINE</span></div>
         <div className="panel pipeline"><div className="pipeline-head"><div><h3>Planning workflow</h3><small>{busy ? "Agents are processing the brief…" : plan ? "Plan generated" : "Waiting for a project brief"}</small></div><div className="progress">{progress}%</div></div><div className="progress-track"><span style={{width: progress + "%"}}/></div>
         {roles.map(([name,desc],i)=><div className="pipeline-row" key={name}><span className="pipeline-icon">{completed.includes(name) ? <CheckCircle2 size={18}/> : <span>{String(i+1).padStart(2,"0")}</span>}</span><div><b>{name}</b><small>{desc}</small></div><span className={completed.includes(name) ? "task-state done" : "task-state"}>{completed.includes(name) ? "DONE" : busy ? "QUEUED" : "IDLE"}</span></div>)}</div>
-        {proposal && <div className="panel output"><div className="panel-head"><h3><Code2 size={16}/> Generated file proposal</h3><span className="task-state">APPROVAL REQUIRED</span></div><p>{proposal.summary}</p>{proposal.files.map(file => <details className="file-preview" key={file.path}><summary>{file.path}{file.truncated ? " · preview truncated" : ""}</summary><pre>{file.preview}</pre></details>)}<div className="notice"><ShieldCheck size={16}/> Review the generated text before applying. Files are not executed or built.</div><button className="primary" disabled={fileBusy} onClick={approveFiles}>{fileBusy ? <Loader2 className="spin" size={16}/> : <CheckCircle2 size={16}/>} Approve and save files</button></div>}\n        {appliedProject && <div className="panel output"><div className="panel-head"><h3><CheckCircle2 size={16}/> Files saved</h3><span className="task-state done">SAVED</span></div><p>{appliedProject.summary}</p><ul>{appliedProject.files.map(file => <li key={file}>{file}</li>)}</ul><small>{appliedProject.note}</small></div>}\n        {plan && <div className="panel output"><div className="panel-head"><h3><Sparkles size={16}/> Project plan</h3><button className="text-button" onClick={() => navigator.clipboard?.writeText(plan)}>Copy plan</button></div><pre>{plan}</pre></div>}
+        {proposal && <div className="panel output"><div className="panel-head"><h3><Code2 size={16}/> Generated file proposal</h3><span className="task-state">APPROVAL REQUIRED</span></div><p>{proposal.summary}</p>{proposal.files.map(file => <details className="file-preview" key={file.path}><summary>{file.path}{file.truncated ? " · preview truncated" : ""}</summary><pre>{file.preview}</pre></details>)}<div className="notice"><ShieldCheck size={16}/> Review the generated text before applying. Files are not executed or built.</div><button className="primary" disabled={fileBusy} onClick={approveFiles}>{fileBusy ? <Loader2 className="spin" size={16}/> : <CheckCircle2 size={16}/>} Approve and save files</button></div>}
+        {appliedProject && <div className="panel output"><div className="panel-head"><h3><CheckCircle2 size={16}/> Files saved</h3><span className="task-state done">SAVED</span></div><p>{appliedProject.summary}</p><ul>{appliedProject.files.map(file => <li key={file}>{file}</li>)}</ul><small>{appliedProject.note}</small></div>}
+        {plan && <div className="panel output"><div className="panel-head"><h3><Sparkles size={16}/> Project plan</h3><button className="text-button" onClick={() => navigator.clipboard?.writeText(plan)}>Copy plan</button></div><pre>{plan}</pre></div>}
         {!plan && !busy && <div className="empty-state"><Rocket size={28}/><b>No project plan yet</b><span>Go to Overview and submit your app or game idea.</span><button className="text-button" onClick={() => setActiveTab("overview")}>Create a project <ArrowRight size={14}/></button></div>}
       </section>}
 
