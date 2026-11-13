@@ -50,7 +50,7 @@ app.post("/api/projects/generate", async (req, res) => {
         temperature: 0.2,
         max_tokens: 7000,
         messages: [
-          { role: "system", content: "You are a careful software project generator. Return ONLY valid JSON with exactly this shape: {\\"summary\\":string,\\"files\\":[{\\"path\\":string,\\"content\\":string}]}. Generate a small coherent starter project, not a plan. Use only relative paths and text source files. Do not include package.json, environment files, scripts, CI workflows, or secrets. Maximum 20 files. Never claim the project was built or tested. Do not wrap JSON in Markdown fences." },
+          { role: "system", content: `You are a careful software project generator. Return ONLY valid JSON with exactly this shape: {"summary":string,"files":[{"path":string,"content":string}]}. Generate a small coherent starter project, not a plan. Use only relative paths and text source files. Do not include package.json, environment files, scripts, CI workflows, or secrets. Maximum 20 files. Never claim the project was built or tested. Do not wrap JSON in Markdown fences.` },
           { role: "user", content: `Create a ${kind === "game" ? "game" : "app"} starter project for this idea:\\n${idea}\\n\\nInclude a concise summary and complete contents for every file. Use a simple web preview-compatible starter unless the request explicitly requires a different framework.` }
         ]
       })
