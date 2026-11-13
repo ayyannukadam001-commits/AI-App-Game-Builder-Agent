@@ -33,7 +33,7 @@ export function validateGeneratedFiles(files) {
 
 export function parseGeneratedProject(content) {
   if (typeof content !== "string") throw new Error("The AI returned no project content.");
-  const cleaned = content.trim().replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "");
+  const cleaned = content.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
   let parsed;
   try { parsed = JSON.parse(cleaned); } catch { throw new Error("The AI response was not valid project JSON. Please retry with a coding-capable model."); }
   if (!parsed || typeof parsed.summary !== "string") throw new Error("The AI response is missing a project summary.");
