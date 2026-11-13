@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "AI-App-Game-Builder-Agent",
+    "architecture": "hybrid",
+    "principles": [
+      "online-model-inference",
+      "local-project-workspace",
+      "optional-github-sync",
+      "approval-before-file-writes",
+      "verified-build-artifacts-only",
+      "no-paid-provider-required-by-design"
+    ]
+  },
+  "client": {
+    "plannedShell": "Capacitor Android wrapper around the existing React/Vite workspace",
+    "localResponsibilities": [
+      "project-file-cache",
+      "drafts-and-settings",
+      "preview-and-diff-review",
+      "download-and-import-build-artifacts"
+    ],
+    "secretsAllowed": false
+  },
+  "orchestrator": {
+    "runtime": "Node.js service",
+    "gateway": "FreeLLMAPI",
+    "apiStyle": "OpenAI-compatible",
+    "baseUrlEnv": "FREELLMAPI_BASE_URL",
+    "apiKeyEnv": "FREELLMAPI_API_KEY",
+    "modelListPath": "/v1/models",
+    "chatPath": "/v1/chat/completions",
+    "modelSelection": "dynamic-capability-based",
+    "fallback": {
+      "enabled": true,
+      "maxAttempts": 2,
+      "onlyRetryOn": [
+        429,
+        500,
+        502,
+        503,
+        504
+      ],
+      "neverRetryOn": [
+        400,
+        401,
+        403
+      ]
+    }
+  },
+  "agentProfiles": [
+    {
+      "id": "manager",
+      "task": "coordination",
+      "modelEnv": "AI_MODEL_MANAGER"
+    },
+    {
+      "id": "planner",
+      "task": "reasoning-planning",
+      "modelEnv": "AI_MODEL_PLANNER"
+    },
+    {
+      "id": "architect",
+      "task": "architecture",
+      "modelEnv": "AI_MODEL_ARCHITECT"
+    },
+    {
+      "id": "designer",
+      "task": "ui-ux",
+      "modelEnv": "AI_MODEL_DESIGNER"
+    },
+    {
+      "id": "frontend",
+      "task": "frontend-coding",
+      "modelEnv": "AI_MODEL_FRONTEND"
+    },
+    {
+      "id": "backend",
+      "task": "backend-coding-tool-calling",
+      "modelEnv": "AI_MODEL_BACKEND"
+    },
+    {
+      "id": "database",
+      "task": "data-design",
+      "modelEnv": "AI_MODEL_DATABASE"
+    },
+    {
+      "id": "game",
+      "task": "game-development",
+      "modelEnv": "AI_MODEL_GAME"
+    },
+    {
+      "id": "tester",
+      "task": "testing-debugging",
+      "modelEnv": "AI_MODEL_TESTER"
+    },
+    {
+      "id": "reviewer",
+      "task": "independent-code-review",
+      "modelEnv": "AI_MODEL_REVIEWER"
+    },
+    {
+      "id": "release",
+      "task": "build-release-analysis",
+      "modelEnv": "AI_MODEL_RELEASE"
+    }
+  ],
+  "workspace": {
+    "primary": "device-local-project-cache",
+    "sync": "optional-github-repository-per-project",
+    "fileWrites": "isolated-workspace-only",
+    "approvalRequiredFor": [
+      "apply-generated-diff",
+      "overwrite-existing-files",
+      "delete-files",
+      "push-to-github",
+      "start-cloud-build"
+    ],
+    "history": "git-commits-and-local-project-metadata"
+  },
+  "build": {
+    "android": {
+      "engine": "Android SDK + Gradle Wrapper",
+      "runner": "GitHub Actions",
+      "artifact": "APK",
+      "artifactMustExistAndBeNonEmpty": true,
+      "signing": "debug-by-default; release-signing-only-with-user-provided-secure-secrets"
+    },
+    "web": {
+      "engine": "Vite build",
+      "runner": "GitHub Actions",
+      "artifact": "web-dist"
+    },
+    "games": {
+      "initialTarget": "2D game pipeline after Android app pipeline is verified",
+      "engineCandidate": "Godot",
+      "status": "planned-not-enabled"
+    }
+  },
+  "freeUsePolicy": {
+    "paidApiKeyNotRequiredByProductDesign": true,
+    "freeProviderAvailability": "must-be-verified-at-runtime",
+    "unlimitedFreeInferenceGuaranteed": false,
+    "hostingAndBuildQuotas": "subject-to-provider-and-github-account-limits",
+    "noSecretValuesInRepository": true
+  },
+  "implementationStatus": {
+    "reactDashboard": "present",
+    "nodeGatewayAdapter": "basic-present",
+    "roleBasedModelRouting": "planned",
+    "autonomousCodeEditing": "not-implemented",
+    "isolatedWorkspaceAndDiffApproval": "not-implemented",
+    "capacitorAndroidShell": "not-implemented",
+    "androidGradleBuild": "not-implemented",
+    "apkArtifactVerification": "not-implemented",
+    "localProjectPersistence": "not-implemented",
+    "githubProjectSync": "not-implemented"
+  }
+}
