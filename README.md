@@ -21,7 +21,7 @@ See:
 ## Not implemented yet
 
 - Task-specific automatic model routing and verified provider fallback.
-- Autonomous code-writing tools, isolated project workspaces, diff approvals, and rollback.
+- Autonomous multi-step code editing, execution sandbox, diff approvals, and rollback. The current editor saves user-approved text changes but does not execute generated code.
 - Capacitor Android wrapper for the Builder APK.
 - Android SDK/Gradle APK build pipeline and verified APK artifacts.
 - Local project database/cache and per-project GitHub sync.
