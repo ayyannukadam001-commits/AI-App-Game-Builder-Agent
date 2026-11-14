@@ -34,6 +34,10 @@ export default function App() {
   const [proposal, setProposal] = useState(null);
   const [appliedProject, setAppliedProject] = useState(null);
   const [fileBusy, setFileBusy] = useState(false);
+  const [workspaceFiles, setWorkspaceFiles] = useState([]);
+  const [selectedFile, setSelectedFile] = useState("");
+  const [editorContent, setEditorContent] = useState("");
+  const [editorMessage, setEditorMessage] = useState("");
 
   async function loadModels(provider = mode) {
     const providerId = provider === "local" ? "local" : "cloud";
@@ -100,13 +104,66 @@ export default function App() {
     } catch (e) { setError(e.message); } finally { setFileBusy(false); }
   }
 
+  async function loadWorkspaceFiles(projectId) {
+    try {
+      const r = await fetch(`/api/projects/${projectId}/files`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Could not load project files.");
+      setWorkspaceFiles(data.files || []);
+      if (data.files?.length) await openWorkspaceFile(projectId, data.files[0].path);
+    } catch (e) {
+      setEditorMessage(e.message);
+    }
+  }
+
+  async function openWorkspaceFile(projectId, filePath) {
+    try {
+      const r = await fetch(`/api/projects/${projectId}/file?path=${encodeURIComponent(filePath)}`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Could not open file.");
+      setSelectedFile(data.path);
+      setEditorContent(data.content);
+      setEditorMessage("");
+    } catch (e) {
+      setEditorMessage(e.message);
+    }
+  }
+
+  async function saveWorkspaceFile() {
+    if (!appliedProject?.projectId || !selectedFile) return;
+    setFileBusy(true);
+    setEditorMessage("");
+    try {
+      const r = await fetch(`/api/projects/${appliedProject.projectId}/file`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: selectedFile, content: editorContent })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Could not save file.");
+      setEditorMessage(`Saved ${data.path}`);
+      await loadWorkspaceFiles(appliedProject.projectId);
+      // Restore the file just saved after refreshing the list.
+      const refreshed = await fetch(`/api/projects/${appliedProject.projectId}/file?path=${encodeURIComponent(selectedFile)}`);
+      const refreshedData = await refreshed.json();
+      if (refreshed.ok) {
+        setSelectedFile(refreshedData.path);
+        setEditorContent(refreshedData.content);
+      }
+    } catch (e) {
+      setEditorMessage(e.message);
+    } finally {
+      setFileBusy(false);
+    }
+  }
+
   async function approveFiles() {
     if (!proposal?.proposalId) return;
     setFileBusy(true); setError("");
     try {
       const r = await fetch(`/api/projects/${proposal.proposalId}/apply`, { method: "POST" });
       const data = await r.json(); if (!r.ok) throw new Error(data.error || "Could not apply project files.");
-      setAppliedProject(data); setProposal(null);
+      setAppliedProject(data); setProposal(null); setWorkspaceFiles([]); setSelectedFile(""); setEditorContent(""); await loadWorkspaceFiles(data.projectId);
     } catch (e) { setError(e.message); } finally { setFileBusy(false); }
   }
 
@@ -167,7 +224,7 @@ export default function App() {
         <div className="panel pipeline"><div className="pipeline-head"><div><h3>Planning workflow</h3><small>{busy ? "Agents are processing the brief…" : plan ? "Plan generated" : "Waiting for a project brief"}</small></div><div className="progress">{progress}%</div></div><div className="progress-track"><span style={{width: progress + "%"}}/></div>
         {roles.map(([name,desc],i)=><div className="pipeline-row" key={name}><span className="pipeline-icon">{completed.includes(name) ? <CheckCircle2 size={18}/> : <span>{String(i+1).padStart(2,"0")}</span>}</span><div><b>{name}</b><small>{desc}</small></div><span className={completed.includes(name) ? "task-state done" : "task-state"}>{completed.includes(name) ? "DONE" : busy ? "QUEUED" : "IDLE"}</span></div>)}</div>
         {proposal && <div className="panel output"><div className="panel-head"><h3><Code2 size={16}/> Generated file proposal</h3><span className="task-state">APPROVAL REQUIRED</span></div><p>{proposal.summary}</p>{proposal.files.map(file => <details className="file-preview" key={file.path}><summary>{file.path}{file.truncated ? " · preview truncated" : ""}</summary><pre>{file.preview}</pre></details>)}<div className="notice"><ShieldCheck size={16}/> Review the generated text before applying. Files are not executed or built.</div><button className="primary" disabled={fileBusy} onClick={approveFiles}>{fileBusy ? <Loader2 className="spin" size={16}/> : <CheckCircle2 size={16}/>} Approve and save files</button></div>}
-        {appliedProject && <div className="panel output"><div className="panel-head"><h3><CheckCircle2 size={16}/> Files saved</h3><span className="task-state done">SAVED</span></div><p>{appliedProject.summary}</p><ul>{appliedProject.files.map(file => <li key={file}>{file}</li>)}</ul><small>{appliedProject.note}</small></div>}
+        {appliedProject && <div className="panel output"><div className="panel-head"><h3><CheckCircle2 size={16}/> Project files</h3><span className="task-state done">SAVED</span></div><p>{appliedProject.summary}</p><small>{appliedProject.note}</small><div className="workspace-editor"><div className="workspace-file-list"><b>Files</b>{workspaceFiles.map(file => <button key={file.path} className={selectedFile === file.path ? "file-choice active" : "file-choice"} onClick={() => openWorkspaceFile(appliedProject.projectId, file.path)}>{file.path}</button>)}</div><div className="workspace-editor-main"><div className="editor-toolbar"><b>{selectedFile || "Select a file"}</b><button className="primary" disabled={fileBusy || !selectedFile} onClick={saveWorkspaceFile}>{fileBusy ? <Loader2 className="spin" size={15}/> : <CheckCircle2 size={15}/>} Save changes</button></div><textarea className="code-editor" value={editorContent} onChange={e => setEditorContent(e.target.value)} spellCheck="false" placeholder="Choose a project file to edit…" />{editorMessage && <small className="muted">{editorMessage}</small>}</div></div></div>}
         {plan && <div className="panel output"><div className="panel-head"><h3><Sparkles size={16}/> Project plan</h3><button className="text-button" onClick={() => navigator.clipboard?.writeText(plan)}>Copy plan</button></div><pre>{plan}</pre></div>}
         {!plan && !busy && <div className="empty-state"><Rocket size={28}/><b>No project plan yet</b><span>Go to Overview and submit your app or game idea.</span><button className="text-button" onClick={() => setActiveTab("overview")}>Create a project <ArrowRight size={14}/></button></div>}
       </section>}
