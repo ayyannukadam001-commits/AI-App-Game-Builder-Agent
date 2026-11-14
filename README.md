@@ -13,14 +13,14 @@ See:
 ## Current repository status
 
 - React + Vite responsive dashboard.
-- Node.js/Express backend with basic FreeLLMAPI `/v1/models` and `/v1/chat/completions` adapter.
+- Node.js/Express backend with a provider adapter for cloud FreeLLMAPI and optional Ollama-compatible local inference. Cloud model discovery uses `/v1/models`; local model discovery uses `/api/tags`.
 - Ten sequential planning roles.
 - Server-side API key handling.
 - GitHub Actions currently validates JavaScript and builds the web workspace.
 
 ## Not implemented yet
 
-- Task-specific automatic model routing and verified fallback.
+- Task-specific automatic model routing and verified provider fallback.
 - Autonomous code-writing tools, isolated project workspaces, diff approvals, and rollback.
 - Capacitor Android wrapper for the Builder APK.
 - Android SDK/Gradle APK build pipeline and verified APK artifacts.
@@ -33,7 +33,7 @@ A passing web build is not an Android APK build. The repository will only report
 
 FreeLLMAPI must run somewhere reachable by the backend. Configure `FREELLMAPI_BASE_URL` and `FREELLMAPI_API_KEY` as backend environment secrets. Never add real keys to source files, the APK, or Git history.
 
-Model IDs are discovered dynamically. Optional task-specific model overrides are documented in `config/hybrid-architecture.json`; free-tier availability and quotas must be checked at runtime.
+Model IDs are discovered dynamically from the selected provider. Optional task-specific model overrides are documented in `config/hybrid-architecture.json`; free-tier availability and quotas must be checked at runtime.
 
 ## Free-use policy
 
