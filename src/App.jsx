@@ -38,6 +38,9 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState("");
   const [editorContent, setEditorContent] = useState("");
   const [editorMessage, setEditorMessage] = useState("");
+  const [githubSync, setGithubSync] = useState({ configured: false, repository: null });
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   async function loadModels(provider = mode) {
     const providerId = provider === "local" ? "local" : "cloud";
@@ -57,7 +60,10 @@ export default function App() {
     }
   }
 
-  useEffect(() => { loadModels("api"); }, []);
+  useEffect(() => {
+    loadModels("api");
+    fetch("/api/github/status").then(r => r.json()).then(setGithubSync).catch(() => setGithubSync({ configured: false, repository: null }));
+  }, []);
 
   function changeMode(nextMode) {
     setMode(nextMode);
@@ -173,6 +179,21 @@ export default function App() {
     }
   }
 
+  async function syncApprovedAndroidProject() {
+    if (!appliedProject?.projectId || appliedProject.projectType !== "android-native") return;
+    setSyncing(true); setSyncResult(null); setEditorMessage("");
+    try {
+      const r = await fetch(`/api/projects/${appliedProject.projectId}/sync-github`, { method: "POST" });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "GitHub sync failed.");
+      setSyncResult(data);
+    } catch (e) {
+      setEditorMessage(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function approveFiles() {
     if (!proposal?.proposalId) return;
     setFileBusy(true); setError("");
@@ -240,7 +261,7 @@ export default function App() {
         <div className="panel pipeline"><div className="pipeline-head"><div><h3>Planning workflow</h3><small>{busy ? "Agents are processing the brief…" : plan ? "Plan generated" : "Waiting for a project brief"}</small></div><div className="progress">{progress}%</div></div><div className="progress-track"><span style={{width: progress + "%"}}/></div>
         {roles.map(([name,desc],i)=><div className="pipeline-row" key={name}><span className="pipeline-icon">{completed.includes(name) ? <CheckCircle2 size={18}/> : <span>{String(i+1).padStart(2,"0")}</span>}</span><div><b>{name}</b><small>{desc}</small></div><span className={completed.includes(name) ? "task-state done" : "task-state"}>{completed.includes(name) ? "DONE" : busy ? "QUEUED" : "IDLE"}</span></div>)}</div>
         {proposal && <div className="panel output"><div className="panel-head"><h3><Code2 size={16}/> {proposal.projectType === "android-native" ? "Native Android project proposal" : "Generated file proposal"}</h3><span className="task-state">APPROVAL REQUIRED</span></div><p>{proposal.summary}</p>{proposal.files.map(file => <details className="file-preview" key={file.path}><summary>{file.path}{file.truncated ? " · preview truncated" : ""}</summary><pre>{file.preview}</pre></details>)}<div className="notice"><ShieldCheck size={16}/> Review the generated text before applying. Files are not executed or built.</div><button className="primary" disabled={fileBusy} onClick={approveFiles}>{fileBusy ? <Loader2 className="spin" size={16}/> : <CheckCircle2 size={16}/>} Approve and save files</button></div>}
-        {appliedProject && <div className="panel output"><div className="panel-head"><h3><CheckCircle2 size={16}/> Project files</h3><span className="task-state done">SAVED</span></div><p>{appliedProject.summary}</p><small>{appliedProject.note}</small><div className="workspace-editor"><div className="workspace-file-list"><b>Files</b>{workspaceFiles.map(file => <button key={file.path} className={selectedFile === file.path ? "file-choice active" : "file-choice"} onClick={() => openWorkspaceFile(appliedProject.projectId, file.path)}>{file.path}</button>)}</div><div className="workspace-editor-main"><div className="editor-toolbar"><b>{selectedFile || "Select a file"}</b><button className="primary" disabled={fileBusy || !selectedFile} onClick={saveWorkspaceFile}>{fileBusy ? <Loader2 className="spin" size={15}/> : <CheckCircle2 size={15}/>} Save changes</button></div><textarea className="code-editor" value={editorContent} onChange={e => setEditorContent(e.target.value)} spellCheck="false" placeholder="Choose a project file to edit…" />{editorMessage && <small className="muted">{editorMessage}</small>}</div></div></div>}
+        {appliedProject && <div className="panel output"><div className="panel-head"><h3><CheckCircle2 size={16}/> Project files</h3><span className="task-state done">SAVED</span></div><p>{appliedProject.summary}</p><small>{appliedProject.note}</small>{appliedProject.projectType === "android-native" && <div className="action-row"><button className="primary" disabled={syncing || !githubSync.configured} onClick={syncApprovedAndroidProject}>{syncing ? <Loader2 className="spin" size={16}/> : <Github size={16}/>} Sync to GitHub &amp; build APK</button><span className="muted">{githubSync.configured ? `Connected: ${githubSync.repository}` : "GitHub sync needs backend configuration"}</span></div>}{syncResult && <div className="notice"><CheckCircle2 size={16}/> Source synced. <a href={syncResult.pullRequestUrl} target="_blank" rel="noreferrer">Open PR #{syncResult.pullRequestNumber}</a> · APK build runs in its Checks tab.</div>}<div className="workspace-editor"><div className="workspace-file-list"><b>Files</b>{workspaceFiles.map(file => <button key={file.path} className={selectedFile === file.path ? "file-choice active" : "file-choice"} onClick={() => openWorkspaceFile(appliedProject.projectId, file.path)}>{file.path}</button>)}</div><div className="workspace-editor-main"><div className="editor-toolbar"><b>{selectedFile || "Select a file"}</b><button className="primary" disabled={fileBusy || !selectedFile} onClick={saveWorkspaceFile}>{fileBusy ? <Loader2 className="spin" size={15}/> : <CheckCircle2 size={15}/>} Save changes</button></div><textarea className="code-editor" value={editorContent} onChange={e => setEditorContent(e.target.value)} spellCheck="false" placeholder="Choose a project file to edit…" />{editorMessage && <small className="muted">{editorMessage}</small>}</div></div></div>}
         {plan && <div className="panel output"><div className="panel-head"><h3><Sparkles size={16}/> Project plan</h3><button className="text-button" onClick={() => navigator.clipboard?.writeText(plan)}>Copy plan</button></div><pre>{plan}</pre></div>}
         {!plan && !busy && <div className="empty-state"><Rocket size={28}/><b>No project plan yet</b><span>Go to Overview and submit your app or game idea.</span><button className="text-button" onClick={() => setActiveTab("overview")}>Create a project <ArrowRight size={14}/></button></div>}
       </section>}
