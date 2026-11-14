@@ -23,3 +23,12 @@ This first milestone proves that the repository can produce a real Android debug
 - Add an explicit user-approved project publish/build flow. Never execute AI-generated shell scripts or arbitrary Gradle tasks.
 - Add build-job status, useful logs and artifact retrieval in the dashboard.
 - Add device/emulator smoke testing and a separate release-signing flow only when the user configures signing credentials.
+
+
+## Native Android project proposal API
+
+The backend exposes `POST /api/projects/generate-android` with JSON fields `idea`, optional `mode` (`api` or `local`), and optional `model`. It asks the configured AI provider for a Kotlin/Jetpack Compose Gradle project and validates the required Gradle files, launcher manifest, namespace, and Compose activity before returning a preview proposal.
+
+The endpoint does not execute generated Gradle files. The client must show the returned file previews and obtain explicit user approval before calling the existing `POST /api/projects/:proposalId/apply` endpoint. Applied Android source and Gradle files can be listed, read, and edited through the existing workspace file APIs.
+
+**Build boundary:** proposals are not APKs. This endpoint does not start a build or claim that the generated project compiles. A later build-worker milestone must compile a selected approved workspace project in an isolated CI job and verify its APK artifact.
