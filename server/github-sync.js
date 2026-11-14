@@ -73,7 +73,7 @@ export async function syncAndroidProjectToGitHub({ files, projectId, env = proce
     method: "POST",
     body: JSON.stringify({ message: `Add generated Android project ${projectId.slice(0, 8)}`, tree: tree.sha, parents: [baseSha] })
   });
-  await githubRequest(config.token, `${api}/git/refs/heads/${encodeURIComponent(branch)}`, {
+  await githubRequest(config.token, `${api}/git/refs/heads/${branch}`, {
     method: "PATCH",
     body: JSON.stringify({ sha: commit.sha, force: false })
   });
