@@ -5,6 +5,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createProposal, parseGeneratedProject } from "./workspace.js";
+import { listProjectFiles, readProjectFile, updateProjectFile } from "./project-files.js";
 import { createChatCompletion, getProviderConfig, listProviderModels } from "./ai-providers.js";
 import { fileURLToPath } from "node:url";
 
@@ -72,6 +73,40 @@ app.post("/api/projects/:proposalId/apply", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Could not apply the approved project proposal.", detail: error.message });
+  }
+});
+
+
+app.get("/api/projects/:projectId/files", async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.projectId)) return res.status(400).json({ error: "Invalid project ID." });
+  try {
+    const projectDir = path.resolve(workspaceRoot, req.params.projectId);
+    const files = await listProjectFiles(projectDir);
+    res.json({ projectId: req.params.projectId, files });
+  } catch (error) {
+    res.status(404).json({ error: "Project workspace not found.", detail: error.message });
+  }
+});
+
+app.get("/api/projects/:projectId/file", async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.projectId)) return res.status(400).json({ error: "Invalid project ID." });
+  try {
+    const projectDir = path.resolve(workspaceRoot, req.params.projectId);
+    res.json(await readProjectFile(projectDir, req.query.path));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+app.put("/api/projects/:projectId/file", async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.projectId)) return res.status(400).json({ error: "Invalid project ID." });
+  try {
+    const projectDir = path.resolve(workspaceRoot, req.params.projectId);
+    const result = await updateProjectFile(projectDir, req.body?.path, req.body?.content);
+    res.json(result);
+  } catch (error) {
+    const status = error.code === "ENOENT" ? 404 : 400;
+    res.status(status).json({ error: error.message });
   }
 });
 
