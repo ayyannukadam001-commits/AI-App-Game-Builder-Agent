@@ -1,16 +1,22 @@
-name: Android APK Build
+name: Android Project APK Build
 
 on:
   workflow_dispatch:
+    inputs:
+      project_path:
+        description: "Committed Android project folder under android-projects/ (example: android-projects/sample)"
+        required: true
+        default: "android-projects/sample"
+        type: string
   pull_request:
     branches: [main]
     paths:
-      - "android-projects/**"
+      - "android-projects/sample/**"
       - ".github/workflows/android-apk.yml"
   push:
     branches: [main]
     paths:
-      - "android-projects/**"
+      - "android-projects/sample/**"
       - ".github/workflows/android-apk.yml"
 
 permissions:
@@ -18,18 +24,17 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Build sample Android app
+    name: Build approved Android project
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: android-projects/sample
+    timeout-minutes: 30
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -56,20 +61,91 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Build debug APK
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
-
-      - name: Verify APK exists and is non-empty
+      - name: Validate selected project
+        id: project
+        shell: bash
+        env:
+          REQUESTED_PROJECT_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.project_path || 'android-projects/sample' }}
         run: |
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
-          echo "APK verified: $APK"
+          set -euo pipefail
+          PROJECT_PATH="$REQUESTED_PROJECT_PATH"
+          if [[ ! "$PROJECT_PATH" =~ ^android-projects/[A-Za-z0-9._/-]+$ ]]; then
+            echo "::error::Project path must be a simple relative path under android-projects/."
+            exit 1
+          fi
+          case "/$PROJECT_PATH/" in
+            */../*|*//*) echo "::error::Project path contains an unsafe segment."; exit 1 ;;
+          esac
+          test -d "$PROJECT_PATH" || { echo "::error::Project folder does not exist."; exit 1; }
+          REAL_PROJECT_PATH="$(realpath "$PROJECT_PATH")"
+          REAL_ALLOWED_ROOT="$(realpath android-projects)"
+          case "$REAL_PROJECT_PATH/" in
+            "$REAL_ALLOWED_ROOT"/*) ;;
+            *) echo "::error::Resolved project path escapes android-projects/."; exit 1 ;;
+          esac
+          if find "$PROJECT_PATH" -type l -print -quit | grep -q .; then
+            echo "::error::Symbolic links are not allowed in Android project inputs."
+            exit 1
+          fi
+          for required in settings.gradle.kts build.gradle.kts app/build.gradle.kts app/src/main/AndroidManifest.xml; do
+            test -s "$PROJECT_PATH/$required" || {
+              echo "::error::Missing required Android project file: $required"
+              exit 1
+            }
+          done
+          FILE_COUNT="$(find "$PROJECT_PATH" -type f | wc -l)"
+          TOTAL_BYTES="$(du -sb "$PROJECT_PATH" | cut -f1)"
+          if (( FILE_COUNT > 1000 || TOTAL_BYTES > 52428800 )); then
+            echo "::error::Project exceeds the 1,000-file or 50 MB build input limit."
+            exit 1
+          fi
+          echo "path=$PROJECT_PATH" >> "$GITHUB_OUTPUT"
+          echo "Validated Android project: $PROJECT_PATH ($FILE_COUNT files, $TOTAL_BYTES bytes)"
+
+      - name: Build debug APK
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ steps.project.outputs.path }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace -p "$PROJECT_PATH" :app:assembleDebug
+
+      - name: Verify APK package and archive
+        id: verify
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ steps.project.outputs.path }}
+        run: |
+          set -euo pipefail
+          APK="$PROJECT_PATH/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK" || { echo "::error::APK was not created or is empty."; exit 1; }
+          unzip -tq "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -m1 "^package: name="
+          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
+          echo "Verified APK: $APK"
           ls -lh "$APK"
 
-      - name: Upload debug APK
+      - name: Write build report
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ steps.project.outputs.path }}
+          APK_PATH: ${{ steps.verify.outputs.apk_path }}
+        run: |
+          {
+            echo "project_path=$PROJECT_PATH"
+            echo "apk_path=$APK_PATH"
+            echo "git_commit=$GITHUB_SHA"
+            echo "workflow_run=$GITHUB_RUN_ID"
+            echo "build_variant=debug"
+            echo "apk_sha256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)"
+          } > "$RUNNER_TEMP/android-build-report.txt"
+
+      - name: Upload verified APK
         uses: actions/upload-artifact@v4
         with:
-          name: sample-android-debug-apk
-          path: android-projects/sample/app/build/outputs/apk/debug/app-debug.apk
+          name: android-debug-apk-${{ github.run_id }}
+          path: |
+            ${{ steps.verify.outputs.apk_path }}
+            ${{ runner.temp }}/android-build-report.txt
           if-no-files-found: error
           retention-days: 14
