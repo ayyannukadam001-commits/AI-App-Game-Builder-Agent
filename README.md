@@ -24,11 +24,11 @@ See:
 - Task-specific automatic model routing and verified provider fallback.
 - Autonomous multi-step code editing, execution sandbox, diff approvals, and rollback. The current editor saves user-approved text changes but does not execute generated code.
 - Capacitor Android wrapper for the Builder APK.
-- Automatic GitHub sync from server-local generated workspaces into `android-projects/`; until that exists, approved generated source must be committed there before the manual APK worker can build it.
+- GitHub sync from approved server-local Android workspaces to a review branch/PR. Configure `GITHUB_TOKEN` and `GITHUB_REPOSITORY` on the backend; generated source is not pushed directly to `main`.
 - Local project database/cache and complete per-project GitHub sync.
 - Verified game export pipeline.
 
-A passing web build is not an Android APK build. The project will only report an APK as ready when the APK file exists, is non-empty, and is uploaded as a workflow artifact.
+GitHub sync uses a backend-held token with repository Contents (read/write) and Pull requests (read/write) permissions. Never expose this token to the browser or commit it. A passing web build is not an Android APK build. The project will only report an APK as ready when the APK file exists, is non-empty, and is uploaded as a workflow artifact.
 
 ## AI connection
 

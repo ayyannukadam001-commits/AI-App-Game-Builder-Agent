@@ -8,6 +8,7 @@ import { createProposal, parseGeneratedProject, validateAndroidProjectFiles } fr
 import { listProjectFiles, readProjectFile, updateProjectFile } from "./project-files.js";
 import { createChatCompletion, getProviderConfig, listProviderModels } from "./ai-providers.js";
 import { fileURLToPath } from "node:url";
+import { getGitHubSyncConfig, syncAndroidProjectToGitHub } from "./github-sync.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -145,6 +146,28 @@ app.put("/api/projects/:projectId/file", async (req, res) => {
     res.json(result);
   } catch (error) {
     const status = error.code === "ENOENT" ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+
+
+app.get("/api/github/status", (_req, res) => {
+  const config = getGitHubSyncConfig();
+  res.json({ configured: config.configured, repository: config.repository || null });
+});
+
+app.post("/api/projects/:projectId/sync-github", async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.projectId)) return res.status(400).json({ error: "Invalid project ID." });
+  try {
+    const projectDir = path.resolve(workspaceRoot, req.params.projectId);
+    const metadata = await listProjectFiles(projectDir);
+    const files = await Promise.all(metadata.map(file => readProjectFile(projectDir, file.path)));
+    validateAndroidProjectFiles(files);
+    const result = await syncAndroidProjectToGitHub({ files, projectId: req.params.projectId });
+    res.status(201).json({ ...result, buildStatus: "ci-pending", note: "Source synced to a review branch. GitHub Actions will build the APK from the pull request; review the PR and check its Actions run." });
+  } catch (error) {
+    const status = /not found|workspace/i.test(error.message) ? 404 : /not configured/i.test(error.message) ? 503 : 400;
     res.status(status).json({ error: error.message });
   }
 });

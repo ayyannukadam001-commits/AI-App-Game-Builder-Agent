@@ -6,12 +6,11 @@ on:
       project_path:
         description: "Committed Android project folder under android-projects/ (example: android-projects/sample)"
         required: true
-        default: "android-projects/sample"
         type: string
   pull_request:
     branches: [main]
     paths:
-      - "android-projects/sample/**"
+      - "android-projects/**"
       - ".github/workflows/android-apk.yml"
   push:
     branches: [main]
