@@ -1,7 +1,7 @@
 import path from "node:path";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 
-const ALLOWED_EXTENSIONS = new Set([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".svg"]);
+const ALLOWED_EXTENSIONS = new Set([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".svg", ".kt", ".kts", ".xml", ".properties", ".pro", ".toml"]);
 const MAX_FILE_BYTES = 180_000;
 
 export function validateWorkspacePath(relativePath) {
