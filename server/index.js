@@ -103,6 +103,8 @@ app.post("/api/projects/:proposalId/apply", async (req, res) => {
     pendingProposals.delete(proposal.id);
     res.status(201).json({
       projectId,
+      projectType: proposal.projectType || "web",
+      buildStatus: "not-built",
       summary: proposal.summary,
       files: proposal.files.map(file => file.path),
       workspace: "server-local",
