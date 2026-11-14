@@ -4,7 +4,7 @@ import cors from "cors";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createProposal, parseGeneratedProject } from "./workspace.js";
+import { createProposal, parseGeneratedProject, validateAndroidProjectFiles } from "./workspace.js";
 import { listProjectFiles, readProjectFile, updateProjectFile } from "./project-files.js";
 import { createChatCompletion, getProviderConfig, listProviderModels } from "./ai-providers.js";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,43 @@ const pendingProposals = new Map();
 const workspaceRoot = path.resolve(process.env.WORKSPACE_DIR || "./data/workspaces");
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 app.use(express.json({ limit: "1mb" }));
+
+
+app.post("/api/projects/generate-android", async (req, res) => {
+  const { idea, model, mode = "api" } = req.body || {};
+  if (typeof idea !== "string" || idea.trim().length < 8 || idea.length > 8000) {
+    return res.status(400).json({ error: "Enter an Android app idea between 8 and 8,000 characters." });
+  }
+  const provider = mode === "local" ? "local" : "cloud";
+  const providerConfig = getProviderConfig(provider);
+  const selectedModel = model || providerConfig.defaultModel || (provider === "cloud" ? configuredModel : "");
+  if (!selectedModel) return res.status(400).json({ error: "No model selected. Connect the chosen AI provider and load its model list." });
+  try {
+    const result = await createChatCompletion({
+      provider, model: selectedModel, temperature: 0.15, maxTokens: 9000,
+      messages: [
+        { role: "system", content: 'You generate native Android projects using Kotlin, Jetpack Compose and Gradle Kotlin DSL. Return ONLY valid JSON with exactly this shape: {"summary":string,"files":[{"path":string,"content":string}]}. Include all six required paths: settings.gradle.kts, build.gradle.kts, gradle.properties, app/build.gradle.kts, app/src/main/AndroidManifest.xml, and app/src/main/java/com/builderagent/generated/MainActivity.kt. Root plugins must use Android Gradle Plugin 8.7.3 and Kotlin 2.0.21 (including the Compose compiler plugin). Use compileSdk 35, minSdk 23, targetSdk 35, Java 17, Compose BOM 2024.09.00, activity-compose and Material3. Namespace and applicationId must be com.builderagent.generated. MainActivity must be a working Compose Activity with setContent. Manifest must declare the launcher activity and exported=true. Use only safe relative text source/config paths. Do not include wrapper binaries, shell scripts, package managers, CI workflows, environment files, credentials, arbitrary build tasks, or secrets. Maximum 12 files. Do not claim this was built or tested. No Markdown fences.' },
+        { role: "user", content: "Create a complete minimal native Android app project for this idea: " + idea + ". Return full contents for the six required files and only additional Kotlin/XML/Gradle configuration files that are genuinely needed. Keep it buildable with the repository Android SDK and Gradle workflow." }
+      ]
+    });
+    const content = result?.choices?.[0]?.message?.content;
+    const project = parseGeneratedProject(typeof content === "string" ? content : "");
+    project.files = validateAndroidProjectFiles(project.files);
+    const proposal = createProposal({ ...project, projectType: "android-native" });
+    pendingProposals.set(proposal.id, proposal);
+    res.json({
+      proposalId: proposal.id,
+      projectType: proposal.projectType,
+      summary: proposal.summary,
+      files: proposal.files.map(file => ({ path: file.path, preview: file.content.slice(0, 5000), truncated: file.content.length > 5000 })),
+      approvalRequired: true,
+      buildStatus: "not-built",
+      expiresInMinutes: 30
+    });
+  } catch (error) {
+    res.status(502).json({ error: error.message });
+  }
+});
 
 app.post("/api/projects/generate", async (req, res) => {
   const { idea, kind = "app", model, mode = "api" } = req.body || {};
@@ -66,6 +103,8 @@ app.post("/api/projects/:proposalId/apply", async (req, res) => {
     pendingProposals.delete(proposal.id);
     res.status(201).json({
       projectId,
+      projectType: proposal.projectType || "web",
+      buildStatus: "not-built",
       summary: proposal.summary,
       files: proposal.files.map(file => file.path),
       workspace: "server-local",
