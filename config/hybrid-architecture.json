@@ -24,7 +24,7 @@
   },
   "orchestrator": {
     "runtime": "Node.js service",
-    "gateway": "FreeLLMAPI",
+    "gateway": "provider-adapter",
     "apiStyle": "OpenAI-compatible",
     "baseUrlEnv": "FREELLMAPI_BASE_URL",
     "apiKeyEnv": "FREELLMAPI_API_KEY",
@@ -46,6 +46,28 @@
         401,
         403
       ]
+    },
+    "providers": {
+      "cloud": {
+        "id": "cloud",
+        "adapter": "FreeLLMAPI",
+        "baseUrlEnv": "FREELLMAPI_BASE_URL",
+        "apiKeyEnv": "FREELLMAPI_API_KEY",
+        "modelsPath": "/v1/models",
+        "chatPath": "/v1/chat/completions",
+        "requiresApiKey": true
+      },
+      "local": {
+        "id": "local",
+        "adapter": "Ollama-compatible",
+        "baseUrlEnv": "LOCAL_AI_BASE_URL",
+        "defaultBaseUrl": "http://127.0.0.1:11434",
+        "apiKeyEnv": "LOCAL_AI_API_KEY",
+        "modelsPath": "/api/tags",
+        "chatPath": "/v1/chat/completions",
+        "requiresApiKey": false,
+        "reachableFrom": "Node.js backend"
+      }
     }
   },
   "agentProfiles": [
@@ -154,6 +176,8 @@
     "androidGradleBuild": "not-implemented",
     "apkArtifactVerification": "not-implemented",
     "localProjectPersistence": "not-implemented",
-    "githubProjectSync": "not-implemented"
+    "githubProjectSync": "not-implemented",
+    "cloudAndLocalProviderAdapter": "implemented",
+    "localModelBundledInAndroid": "not-implemented"
   }
 }
