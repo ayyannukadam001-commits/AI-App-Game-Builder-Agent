@@ -19,9 +19,14 @@ See:
 - Server-side API key handling.
 - A native Kotlin/Jetpack Compose sample app and a GitHub Actions workflow that builds and uploads a real debug APK.
 
-## Important capability boundaries
+## Not implemented yet
 
-The Android workflow currently proves the Gradle/Android SDK toolchain by building the included sample app. It does not yet build arbitrary AI-generated projects from the server workspace, export games, or create a Play Store-ready signed release. See [Android APK build pipeline](docs/ANDROID-APK-PIPELINE.md).
+- Task-specific automatic model routing and verified provider fallback.
+- Autonomous multi-step code editing, execution sandbox, diff approvals, and rollback. The current editor saves user-approved text changes but does not execute generated code.
+- Capacitor Android wrapper for the Builder APK.
+- A project-specific Android generator and build flow that turns arbitrary AI-generated workspace projects into installable APKs. The current Android workflow builds only the included sample app.
+- Local project database/cache and complete per-project GitHub sync.
+- Verified game export pipeline.
 
 A passing web build is not an Android APK build. The project will only report an APK as ready when the APK file exists, is non-empty, and is uploaded as a workflow artifact.
 
