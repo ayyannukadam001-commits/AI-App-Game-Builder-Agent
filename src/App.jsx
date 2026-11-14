@@ -35,15 +35,16 @@ export default function App() {
   const [appliedProject, setAppliedProject] = useState(null);
   const [fileBusy, setFileBusy] = useState(false);
 
-  async function loadModels() {
+  async function loadModels(provider = mode) {
+    const providerId = provider === "local" ? "local" : "cloud";
     setConnection("checking");
     try {
-      const r = await fetch("/api/models");
+      const r = await fetch(`/api/models?provider=${providerId}`);
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "FreeLLMAPI connection not configured.");
       const list = data.models || [];
       setModels(list);
-      if (!model && list.length) setModel(list[0].id);
+      setModel(data.defaultModel || list[0]?.id || "");
       setConnection("connected");
       setError("");
     } catch (e) {
@@ -52,13 +53,19 @@ export default function App() {
     }
   }
 
-  useEffect(() => { loadModels(); }, []);
+  useEffect(() => { loadModels("api"); }, []);
+
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setModel("");
+    loadModels(nextMode);
+  }
 
   async function createPlan(e) {
     e.preventDefault();
     if (!idea.trim()) return;
-    if (mode === "api" && connection !== "connected") {
-      setError("Configure FREELLMAPI_BASE_URL and FREELLMAPI_API_KEY on the server first. No key is needed in the browser.");
+    if (connection !== "connected") {
+      setError(mode === "local" ? "Connect a reachable local Ollama server and load its models first." : "Configure the cloud AI gateway on the server first.");
       return;
     }
     setBusy(true);
@@ -87,7 +94,7 @@ export default function App() {
     if (idea.trim().length < 8 || !model || connection !== "connected") return;
     setFileBusy(true); setError(""); setProposal(null); setAppliedProject(null);
     try {
-      const r = await fetch("/api/projects/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, kind, model }) });
+      const r = await fetch("/api/projects/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, kind, model, mode }) });
       const data = await r.json(); if (!r.ok) throw new Error(data.error || "Project generation failed.");
       setProposal(data); setActiveTab("workspace");
     } catch (e) { setError(e.message); } finally { setFileBusy(false); }
@@ -103,7 +110,7 @@ export default function App() {
     } catch (e) { setError(e.message); } finally { setFileBusy(false); }
   }
 
-  const statusLabel = connection === "connected" ? "FreeLLMAPI connected" : connection === "checking" ? "Checking gateway…" : "Gateway not configured";
+  const statusLabel = connection === "connected" ? (mode === "local" ? "Local AI connected" : "Cloud AI connected") : connection === "checking" ? "Checking AI provider…" : (mode === "local" ? "Local AI not connected" : "Cloud AI not configured");
   const progress = Math.round((completed.length / roles.length) * 100);
 
   return <div className="shell">
@@ -142,14 +149,14 @@ export default function App() {
               <button type="button" className={kind === "game" ? "choice selected" : "choice"} onClick={() => setKind("game")}><Gamepad2 size={17}/> Game</button>
             </div></div>
             <div><label className="field-label">AI mode</label><div className="choice-row">
-              <button type="button" className={mode === "api" ? "choice selected" : "choice"} onClick={() => setMode("api")}><Activity size={17}/> API / Cloud</button>
-              <button type="button" className={mode === "local" ? "choice selected" : "choice"} onClick={() => setMode("local")}><Cpu size={17}/> Local / Offline</button>
+              <button type="button" className={mode === "api" ? "choice selected" : "choice"} onClick={() => changeMode("api")}><Activity size={17}/> API / Cloud</button>
+              <button type="button" className={mode === "local" ? "choice selected" : "choice"} onClick={() => changeMode("local")}><Cpu size={17}/> Local / Offline</button>
             </div></div>
           </div>
-          {mode === "api" && <div className="model-row"><label className="field-label">FreeLLMAPI model</label><select value={model} onChange={e => setModel(e.target.value)} disabled={!models.length}><option value="">{models.length ? "Choose a model" : "Configure gateway to load models"}</option>{models.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}</select><span className={connection === "connected" ? "mini-status ok" : "mini-status"}>{connection === "connected" ? "READY" : "NOT CONNECTED"}</span></div>}
-          {mode === "local" && <div className="notice"><Cpu size={16}/> Local mode is a planned adapter. No offline model runtime is bundled yet; this mode will not pretend to run offline.</div>}
+          {mode === "api" && <div className="model-row"><label className="field-label">{mode === "local" ? "Local Ollama model" : "Cloud AI model"}</label><select value={model} onChange={e => setModel(e.target.value)} disabled={!models.length}><option value="">{models.length ? "Choose a model" : mode === "local" ? "Connect local AI to load models" : "Configure cloud gateway to load models"}</option>{models.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}</select><span className={connection === "connected" ? "mini-status ok" : "mini-status"}>{connection === "connected" ? "READY" : "NOT CONNECTED"}</span></div>}
+          {mode === "local" && <div className="notice"><Cpu size={16}/> Local mode connects to an Ollama-compatible server at LOCAL_AI_BASE_URL (default http://127.0.0.1:11434). The server must be reachable from this backend; no model is bundled in the APK.</div>}
           {error && <div className="error"><XCircle size={16}/>{error}</div>}
-          <div className="action-row"><button className="primary" disabled={busy || !idea.trim() || (mode === "local")} type="submit">{busy ? <><Loader2 className="spin" size={17}/> Agents working…</> : <>Generate project plan <ArrowRight size={17}/></>}</button><button className="secondary" type="button" disabled={fileBusy || idea.trim().length < 8 || !model || connection !== "connected"} onClick={generateFiles}>{fileBusy ? <Loader2 className="spin" size={16}/> : <Code2 size={16}/>} Generate starter files</button></div>
+          <div className="action-row"><button className="primary" disabled={busy || !idea.trim() || connection !== "connected" || !model} type="submit">{busy ? <><Loader2 className="spin" size={17}/> Agents working…</> : <>Generate project plan <ArrowRight size={17}/></>}</button><button className="secondary" type="button" disabled={fileBusy || idea.trim().length < 8 || !model || connection !== "connected"} onClick={generateFiles}>{fileBusy ? <Loader2 className="spin" size={16}/> : <Code2 size={16}/>} Generate starter files</button></div>
           <p className="privacy-note"><ShieldCheck size={14}/> API keys are never entered into this page or committed to Git.</p>
         </form>
         <div className="lower-grid"><div className="panel"><div className="panel-head"><h3>Agent team</h3><button className="text-button" onClick={() => setActiveTab("agents")}>View roles <ArrowRight size={13}/></button></div><div className="role-preview">{roles.slice(0,4).map(([name,desc],i)=><div className="role-line" key={name}><span className="role-num">0{i+1}</span><div><b>{name}</b><small>{desc}</small></div><Circle size={9} className="role-idle"/></div>)}</div></div>
@@ -167,7 +174,7 @@ export default function App() {
 
       {activeTab === "agents" && <section className="content"><div className="section-title"><div><span className="eyebrow">SPECIALIST CREW</span><h2>Agent team</h2></div><span className="step-label">10 ROLES</span></div><div className="agent-grid">{roles.map(([name,desc,id],i)=><div className="panel agent-card" key={id}><div className="agent-top"><span className="agent-icon"><Bot size={18}/></span><span className="role-num">AGENT {String(i+1).padStart(2,"0")}</span></div><h3>{name}</h3><p>{desc}</p><span className="task-state">ORCHESTRATED BY MANAGER</span></div>)}</div></section>}
 
-      {activeTab === "settings" && <section className="content"><div className="section-title"><div><span className="eyebrow">PROVIDER SETTINGS</span><h2>AI connection</h2></div></div><div className="panel settings-panel"><div className="settings-icon"><Terminal size={22}/></div><h3>FreeLLMAPI gateway</h3><p>Connect your own FreeLLMAPI server. The app talks to its OpenAI-compatible <code>/v1</code> API. Provider keys remain inside FreeLLMAPI; only the unified gateway key is stored as a server secret.</p><div className="config-list"><div><span>Gateway base URL</span><code>FREELLMAPI_BASE_URL</code></div><div><span>Unified API key</span><code>FREELLMAPI_API_KEY</code></div><div><span>Optional default model</span><code>FREELLMAPI_MODEL</code></div></div><div className="notice"><ShieldCheck size={16}/> Add these values to your deployment environment or local .env file. Never paste secrets into GitHub source files.</div><button className="secondary" onClick={loadModels}><RefreshCw size={15}/> Test connection</button></div></section>}
+      {activeTab === "settings" && <section className="content"><div className="section-title"><div><span className="eyebrow">PROVIDER SETTINGS</span><h2>AI connection</h2></div></div><div className="panel settings-panel"><div className="settings-icon"><Terminal size={22}/></div><h3>Hybrid AI providers</h3><p>Choose cloud inference through FreeLLMAPI or an optional reachable Ollama server. Both use an OpenAI-compatible chat endpoint; Ollama model discovery uses its local tags API. Provider credentials stay on the backend.</p><div className="config-list"><div><span>Cloud gateway URL</span><code>FREELLMAPI_BASE_URL</code></div><div><span>Cloud gateway key</span><code>FREELLMAPI_API_KEY</code></div><div><span>Cloud default model</span><code>FREELLMAPI_MODEL</code></div><div><span>Local Ollama URL</span><code>LOCAL_AI_BASE_URL</code></div><div><span>Optional local key</span><code>LOCAL_AI_API_KEY</code></div><div><span>Local default model</span><code>LOCAL_AI_MODEL</code></div></div><div className="notice"><ShieldCheck size={16}/> Add server values to your deployment environment or local .env file. Cloud AI requires a gateway key; local Ollama does not. Never paste secrets into GitHub source files.</div><button className="secondary" onClick={loadModels}><RefreshCw size={15}/> Test connection</button></div></section>}
       <footer>BUILDER AGENT <span>·</span> Honest progress. Real builds. No fake features.</footer>
     </main>
   </div>;
