@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 const API = "https://api.github.com";
 
 function headers(token) {
@@ -40,21 +42,15 @@ export async function syncAndroidProjectToGitHub({ files, projectId, env = proce
   const owner = ownerRepo[0];
   const repo = ownerRepo[1];
   const api = `${API}/repos/${owner}/${repo}`;
-  const base = await githubRequest(config.token, `${api}/git/ref/heads/main`).catch(async error => {
-    if (!String(error.message).includes("404")) throw error;
-    const repository = await githubRequest(config.token, api);
-    return githubRequest(config.token, `${api}/git/ref/heads/${repository.default_branch}`);
-  });
-  const baseBranch = base.ref.split("/").slice(2).join("/");
+  const repository = await githubRequest(config.token, api);
+  const baseBranch = repository.default_branch;
+  const base = await githubRequest(config.token, `${api}/git/ref/heads/${baseBranch}`);
   const baseSha = base.object.sha;
-  const branch = `generated/project-${projectId.slice(0, 8)}`;
-  const created = await githubRequest(config.token, `${api}/git/refs`, {
+  const baseCommit = await githubRequest(config.token, `${api}/git/commits/${baseSha}`);
+  const branch = `generated/project-${projectId.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
+  await githubRequest(config.token, `${api}/git/refs`, {
     method: "POST",
     body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha })
-  }).catch(async error => {
-    if (!String(error.message).includes("422")) throw error;
-    const current = await githubRequest(config.token, `${api}/git/ref/heads/${branch}`);
-    return current;
   });
 
   const entries = [];
@@ -67,7 +63,7 @@ export async function syncAndroidProjectToGitHub({ files, projectId, env = proce
   }
   const tree = await githubRequest(config.token, `${api}/git/trees`, {
     method: "POST",
-    body: JSON.stringify({ base_tree: baseSha, tree: entries })
+    body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: entries })
   });
   const commit = await githubRequest(config.token, `${api}/git/commits`, {
     method: "POST",

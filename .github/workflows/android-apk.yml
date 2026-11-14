@@ -11,12 +11,10 @@ on:
     branches: [main]
     paths:
       - "android-projects/**"
-      - ".github/workflows/android-apk.yml"
   push:
     branches: [main]
     paths:
       - "android-projects/**"
-      - ".github/workflows/android-apk.yml"
 
 permissions:
   contents: read
@@ -64,10 +62,20 @@ jobs:
         id: project
         shell: bash
         env:
-          REQUESTED_PROJECT_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.project_path || 'android-projects/sample' }}
+          REQUESTED_PROJECT_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.project_path || '' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
         run: |
           set -euo pipefail
           PROJECT_PATH="$REQUESTED_PROJECT_PATH"
+          if [[ -z "$PROJECT_PATH" ]]; then
+            test -n "$BASE_SHA" || { echo "::error::Could not determine the base commit for this build."; exit 1; }
+            mapfile -t PROJECT_FOLDERS < <(git diff --name-only "$BASE_SHA" "$GITHUB_SHA" | awk -F/ '$1 == "android-projects" && NF >= 3 { print $1 "/" $2 }' | sort -u)
+            if (( ${#PROJECT_FOLDERS[@]} != 1 )); then
+              echo "::error::A build must change exactly one project folder under android-projects/."
+              exit 1
+            fi
+            PROJECT_PATH="${PROJECT_FOLDERS[0]}"
+          fi
           if [[ ! "$PROJECT_PATH" =~ ^android-projects/[A-Za-z0-9._/-]+$ ]]; then
             echo "::error::Project path must be a simple relative path under android-projects/."
             exit 1
