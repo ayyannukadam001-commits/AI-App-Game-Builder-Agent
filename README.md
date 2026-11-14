@@ -8,32 +8,28 @@ A mobile-first AI app/game creation workspace. This repository is the source of 
 
 See:
 - [Hybrid architecture](docs/HYBRID-ARCHITECTURE.md)
+- [Android APK build pipeline](docs/ANDROID-APK-PIPELINE.md)
 - [Machine-readable architecture config](config/hybrid-architecture.json)
 
 ## Current repository status
 
 - React + Vite responsive dashboard.
-- Node.js/Express backend with a provider adapter for cloud FreeLLMAPI and optional Ollama-compatible local inference. Cloud model discovery uses `/v1/models`; local model discovery uses `/api/tags`.
+- Node.js/Express backend with a provider adapter for cloud FreeLLMAPI and optional Ollama-compatible local inference.
 - Ten sequential planning roles.
 - Server-side API key handling.
-- GitHub Actions currently validates JavaScript and builds the web workspace.
+- A native Kotlin/Jetpack Compose sample app and a GitHub Actions workflow that builds and uploads a real debug APK.
 
-## Not implemented yet
+## Important capability boundaries
 
-- Task-specific automatic model routing and verified provider fallback.
-- Autonomous code-writing tools, isolated project workspaces, diff approvals, and rollback.
-- Capacitor Android wrapper for the Builder APK.
-- Android SDK/Gradle APK build pipeline and verified APK artifacts.
-- Local project database/cache and per-project GitHub sync.
-- Verified game export pipeline.
+The Android workflow currently proves the Gradle/Android SDK toolchain by building the included sample app. It does not yet build arbitrary AI-generated projects from the server workspace, export games, or create a Play Store-ready signed release. See [Android APK build pipeline](docs/ANDROID-APK-PIPELINE.md).
 
-A passing web build is not an Android APK build. The repository will only report an APK as ready when the APK file exists, is non-empty, and is uploaded as a workflow artifact.
+A passing web build is not an Android APK build. The project will only report an APK as ready when the APK file exists, is non-empty, and is uploaded as a workflow artifact.
 
 ## AI connection
 
 FreeLLMAPI must run somewhere reachable by the backend. Configure `FREELLMAPI_BASE_URL` and `FREELLMAPI_API_KEY` as backend environment secrets. Never add real keys to source files, the APK, or Git history.
 
-Model IDs are discovered dynamically from the selected provider. Optional task-specific model overrides are documented in `config/hybrid-architecture.json`; free-tier availability and quotas must be checked at runtime.
+Model IDs are discovered dynamically from the selected provider. Free-tier availability and quotas must be checked at runtime.
 
 ## Free-use policy
 
