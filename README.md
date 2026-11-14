@@ -17,14 +17,14 @@ See:
 - Node.js/Express backend with a provider adapter for cloud FreeLLMAPI and optional Ollama-compatible local inference.
 - Ten sequential planning roles.
 - Server-side API key handling.
-- A native Kotlin/Jetpack Compose sample app and a GitHub Actions workflow that builds and uploads a real debug APK.
+- A native Kotlin/Jetpack Compose sample app and a GitHub Actions worker that builds a selected committed Android project under `android-projects/` into a verified debug APK artifact.
 
 ## Not implemented yet
 
 - Task-specific automatic model routing and verified provider fallback.
 - Autonomous multi-step code editing, execution sandbox, diff approvals, and rollback. The current editor saves user-approved text changes but does not execute generated code.
 - Capacitor Android wrapper for the Builder APK.
-- A project-specific Android generator and build flow that turns arbitrary AI-generated workspace projects into installable APKs. The current Android workflow builds only the included sample app.
+- Automatic GitHub sync from server-local generated workspaces into `android-projects/`; until that exists, approved generated source must be committed there before the manual APK worker can build it.
 - Local project database/cache and complete per-project GitHub sync.
 - Verified game export pipeline.
 
