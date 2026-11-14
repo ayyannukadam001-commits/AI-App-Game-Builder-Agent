@@ -1,7 +1,7 @@
 const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434";
 
 function cleanBaseUrl(value) {
-  return String(value || "").trim().replace(/\\/+$/, "");
+  return String(value || "").trim().replace(/\/+$/, "");
 }
 
 export function getProviderConfig(provider, env = process.env) {
