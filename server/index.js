@@ -78,7 +78,8 @@ app.post("/api/projects/:proposalId/apply", async (req, res) => {
 app.get("/api/health", (_req, res) => res.json({
   status: "ok",
   cloudConfigured: Boolean(process.env.FREELLMAPI_BASE_URL && process.env.FREELLMAPI_API_KEY),
-  localConfigured: Boolean(process.env.LOCAL_AI_BASE_URL || "http://127.0.0.1:11434"),
+  localConfigured: Boolean(process.env.LOCAL_AI_BASE_URL),
+  localDefaultBaseUrl: process.env.LOCAL_AI_BASE_URL || "http://127.0.0.1:11434",
   localModeAvailable: true,
   apkBuilderAvailable: false
 }));
